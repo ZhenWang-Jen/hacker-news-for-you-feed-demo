@@ -25,18 +25,21 @@ const Index = () => {
   const sortedStories = [...filteredStories].sort((a, b) => b.points - a.points);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-900 text-gray-100">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+      <header className="bg-gray-800 border-b border-gray-700 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">HN</span>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">HN</span>
               </div>
-              <h1 className="text-2xl font-bold text-gray-900">For You Feed</h1>
+              <div>
+                <h1 className="text-3xl font-bold text-white">Hacker News</h1>
+                <p className="text-gray-400 text-sm mt-1">For You Feed</p>
+              </div>
             </div>
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-400">
               {sortedStories.length} stories
             </div>
           </div>
@@ -44,13 +47,16 @@ const Index = () => {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <FilterBar 
-          activeFilter={activeFilter} 
-          onFilterChange={setActiveFilter} 
-        />
+      <main className="max-w-5xl mx-auto px-6 py-8">
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-white mb-4">Discover Stories</h2>
+          <FilterBar 
+            activeFilter={activeFilter} 
+            onFilterChange={setActiveFilter} 
+          />
+        </div>
         
-        <div className="space-y-4">
+        <div className="space-y-6">
           {sortedStories.map((story) => (
             <FeedItem 
               key={story.id} 
@@ -61,17 +67,17 @@ const Index = () => {
         </div>
 
         {sortedStories.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-gray-400 text-lg mb-2">No stories found</div>
+          <div className="text-center py-16">
+            <div className="text-gray-400 text-xl mb-3">No stories found</div>
             <div className="text-gray-500">Try selecting a different filter</div>
           </div>
         )}
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-12">
-        <div className="max-w-4xl mx-auto px-4 py-6 text-center text-gray-500 text-sm">
-          <p>Inspired by Hacker News • Built with React & Tailwind CSS</p>
+      <footer className="bg-gray-800 border-t border-gray-700 mt-16">
+        <div className="max-w-5xl mx-auto px-6 py-8 text-center text-gray-400 text-sm">
+          <p>Inspired by Hacker News • Built with React & Tailwind CSS • Powered by Shaped AI</p>
         </div>
       </footer>
     </div>
