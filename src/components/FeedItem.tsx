@@ -45,13 +45,13 @@ export const FeedItem: React.FC<FeedItemProps> = ({ story, onVote }) => {
   };
 
   const handleAuthorClick = () => {
-    // For demo purposes, just log the author click
-    console.log(`Clicked on author: ${story.author}`);
+    const hackerNewsUserUrl = `https://news.ycombinator.com/user?id=${story.author}`;
+    window.open(hackerNewsUserUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleCommentsClick = () => {
-    // For demo purposes, just log the comments click
-    console.log(`Clicked on comments for story: ${story.id}`);
+    const hackerNewsItemUrl = `https://news.ycombinator.com/item?id=${story.id}`;
+    window.open(hackerNewsItemUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
