@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LogOut } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { FeedItem, Story } from '@/components/FeedItem';
 import { FilterBar, FilterType } from '@/components/FilterBar';
 import { StoriesPerPageSelector } from '@/components/StoriesPerPageSelector';
@@ -8,19 +9,41 @@ import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { LoginModal } from '@/components/LoginModal';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockStories } from '@/data/mockStories';
+import { fetchTopStories, fetchStories, transformHNStory } from '@/services/hackerNewsApi';
 
 const Index = () => {
   const { user, logout, isAuthenticated } = useAuth();
-  const [stories, setStories] = useState<Story[]>(mockStories);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [storiesPerPage, setStoriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [allStories, setAllStories] = useState<Story[]>([]);
+
+  // Fetch story IDs
+  const { data: storyIds = [], isLoading: isLoadingIds } = useQuery({
+    queryKey: ['topStories'],
+    queryFn: () => fetchTopStories(100), // Fetch more IDs so we have enough for pagination
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Fetch actual stories
+  const { data: hnStories = [], isLoading: isLoadingStories } = useQuery({
+    queryKey: ['stories', storyIds],
+    queryFn: () => fetchStories(storyIds),
+    enabled: storyIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Transform HN stories to our format
+  useEffect(() => {
+    if (hnStories.length > 0) {
+      const transformedStories = hnStories.map(transformHNStory);
+      setAllStories(transformedStories);
+    }
+  }, [hnStories]);
 
   const handleVote = (id: number, direction: 'up' | 'down') => {
-    setStories(prevStories => 
+    setAllStories(prevStories => 
       prevStories.map(story => 
         story.id === id 
           ? { ...story, points: story.points + (direction === 'up' ? 1 : -1) }
@@ -29,7 +52,7 @@ const Index = () => {
     );
   };
 
-  const filteredStories = stories.filter(story => 
+  const filteredStories = allStories.filter(story => 
     activeFilter === 'all' || story.category === activeFilter
   );
 
@@ -39,23 +62,20 @@ const Index = () => {
   const hasMoreStories = displayedStories.length < sortedStories.length;
 
   const handleLoadMore = () => {
-    setIsLoadingMore(true);
-    // Simulate loading delay
-    setTimeout(() => {
-      setCurrentPage(prev => prev + 1);
-      setIsLoadingMore(false);
-    }, 1000);
+    setCurrentPage(prev => prev + 1);
   };
 
   const handleStoriesPerPageChange = (newValue: number) => {
     setStoriesPerPage(newValue);
-    setCurrentPage(1); // Reset to first page when changing page size
+    setCurrentPage(1);
   };
 
   const handleFilterChange = (filter: FilterType) => {
     setActiveFilter(filter);
-    setCurrentPage(1); // Reset to first page when changing filter
+    setCurrentPage(1);
   };
+
+  const isLoading = isLoadingIds || isLoadingStories;
 
   // Show login modal if not authenticated
   if (!isAuthenticated) {
@@ -125,7 +145,7 @@ const Index = () => {
                 onChange={handleStoriesPerPageChange} 
               />
               <div className="text-sm text-gray-400">
-                Showing {displayedStories.length} of {sortedStories.length} stories
+                {isLoading ? 'Loading...' : `Showing ${displayedStories.length} of ${sortedStories.length} stories`}
               </div>
             </div>
           </div>
@@ -135,34 +155,42 @@ const Index = () => {
           />
         </div>
         
-        <div className="space-y-6">
-          {displayedStories.map((story) => (
-            <FeedItem 
-              key={story.id} 
-              story={story} 
-              onVote={handleVote}
-            />
-          ))}
-        </div>
-
-        {displayedStories.length === 0 && (
-          <div className="text-center py-16">
-            <div className="text-gray-400 text-xl mb-3">No stories found</div>
-            <div className="text-gray-500">Try selecting a different filter</div>
+        {isLoading ? (
+          <div className="flex justify-center py-16">
+            <div className="text-gray-400 text-xl">Loading real Hacker News stories...</div>
           </div>
-        )}
+        ) : (
+          <>
+            <div className="space-y-6">
+              {displayedStories.map((story) => (
+                <FeedItem 
+                  key={story.id} 
+                  story={story} 
+                  onVote={handleVote}
+                />
+              ))}
+            </div>
 
-        <LoadMoreButton 
-          onLoadMore={handleLoadMore}
-          isLoading={isLoadingMore}
-          hasMore={hasMoreStories}
-        />
+            {displayedStories.length === 0 && !isLoading && (
+              <div className="text-center py-16">
+                <div className="text-gray-400 text-xl mb-3">No stories found</div>
+                <div className="text-gray-500">Try selecting a different filter</div>
+              </div>
+            )}
+
+            <LoadMoreButton 
+              onLoadMore={handleLoadMore}
+              isLoading={false}
+              hasMore={hasMoreStories}
+            />
+          </>
+        )}
       </main>
 
       {/* Footer */}
       <footer className="bg-gray-800 border-t border-gray-700 mt-16">
         <div className="max-w-5xl mx-auto px-6 py-8 text-center text-gray-400 text-sm">
-          <p>Inspired by Hacker News • Built with React & Tailwind CSS • Powered by Shaped AI</p>
+          <p>Real Hacker News Stories • Built with React & Tailwind CSS • Powered by Shaped AI</p>
         </div>
       </footer>
     </div>
