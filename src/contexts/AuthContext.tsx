@@ -5,11 +5,13 @@ interface User {
   id: string;
   email: string;
   name: string;
+  preferences: string[];
 }
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
+  signup: (name: string, email: string, password: string, preferences: string[]) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -37,11 +39,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser({
         id: '1',
         email: 'demo@example.com',
-        name: 'Demo User'
+        name: 'Demo User',
+        preferences: ['technology', 'startups', 'web'] // Default preferences for demo user
       });
       return true;
     }
     return false;
+  };
+
+  const signup = async (name: string, email: string, password: string, preferences: string[]): Promise<boolean> => {
+    // Simulate API call
+    try {
+      setUser({
+        id: Date.now().toString(),
+        email,
+        name,
+        preferences
+      });
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const logout = () => {
@@ -51,7 +69,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isAuthenticated = user !== null;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, login, signup, logout, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

@@ -7,9 +7,11 @@ import { FilterBar, FilterType } from '@/components/FilterBar';
 import { StoriesPerPageSelector } from '@/components/StoriesPerPageSelector';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { LoginModal } from '@/components/LoginModal';
+import { SignUpModal } from '@/components/SignUpModal';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchTopStories, fetchStories, transformHNStory } from '@/services/hackerNewsApi';
+import { matchStoryToPreferences, getRelevanceScore } from '@/utils/storyMatcher';
 
 const Index = () => {
   const { user, logout, isAuthenticated } = useAuth();
@@ -17,13 +19,14 @@ const Index = () => {
   const [storiesPerPage, setStoriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
   const [allStories, setAllStories] = useState<Story[]>([]);
 
   // Fetch story IDs
   const { data: storyIds = [], isLoading: isLoadingIds } = useQuery({
     queryKey: ['topStories'],
-    queryFn: () => fetchTopStories(100), // Fetch more IDs so we have enough for pagination
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: () => fetchTopStories(100),
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch actual stories
@@ -52,14 +55,25 @@ const Index = () => {
     );
   };
 
-  const filteredStories = allStories.filter(story => 
+  // Filter stories based on category
+  const categoryFilteredStories = allStories.filter(story => 
     activeFilter === 'all' || story.category === activeFilter
   );
 
-  const sortedStories = [...filteredStories].sort((a, b) => b.points - a.points);
-  
-  const displayedStories = sortedStories.slice(0, currentPage * storiesPerPage);
-  const hasMoreStories = displayedStories.length < sortedStories.length;
+  // Filter stories based on user preferences and sort by relevance
+  const personalizedStories = user?.preferences?.length 
+    ? categoryFilteredStories
+        .filter(story => matchStoryToPreferences(story.title, user.preferences))
+        .sort((a, b) => {
+          const scoreA = getRelevanceScore(a.title, user.preferences);
+          const scoreB = getRelevanceScore(b.title, user.preferences);
+          if (scoreA !== scoreB) return scoreB - scoreA; // Higher relevance first
+          return b.points - a.points; // Then by points
+        })
+    : categoryFilteredStories.sort((a, b) => b.points - a.points);
+
+  const displayedStories = personalizedStories.slice(0, currentPage * storiesPerPage);
+  const hasMoreStories = displayedStories.length < personalizedStories.length;
 
   const handleLoadMore = () => {
     setCurrentPage(prev => prev + 1);
@@ -77,7 +91,7 @@ const Index = () => {
 
   const isLoading = isLoadingIds || isLoadingStories;
 
-  // Show login modal if not authenticated
+  // Show login/signup options if not authenticated
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
@@ -87,18 +101,31 @@ const Index = () => {
           </div>
           <h1 className="text-4xl font-bold text-white mb-4">Hacker News</h1>
           <p className="text-gray-400 mb-8 max-w-md">
-            Please login to access your personalized For You Feed
+            Create an account to get a personalized For You Feed based on your interests
           </p>
-          <Button 
-            onClick={() => setIsLoginModalOpen(true)}
-            className="bg-purple-600 hover:bg-purple-700 px-8 py-3"
-          >
-            Login to Continue
-          </Button>
+          <div className="flex gap-4 justify-center">
+            <Button 
+              onClick={() => setIsSignUpModalOpen(true)}
+              className="bg-purple-600 hover:bg-purple-700 px-8 py-3"
+            >
+              Sign Up
+            </Button>
+            <Button 
+              onClick={() => setIsLoginModalOpen(true)}
+              variant="outline"
+              className="border-gray-600 text-gray-300 hover:bg-gray-700 px-8 py-3"
+            >
+              Login
+            </Button>
+          </div>
         </div>
         <LoginModal 
           isOpen={isLoginModalOpen} 
           onClose={() => setIsLoginModalOpen(false)} 
+        />
+        <SignUpModal 
+          isOpen={isSignUpModalOpen} 
+          onClose={() => setIsSignUpModalOpen(false)} 
         />
       </div>
     );
@@ -116,7 +143,9 @@ const Index = () => {
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-white">Hacker News</h1>
-                <p className="text-gray-400 text-sm mt-1">For You Feed</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {user?.preferences?.length ? 'Personalized For You Feed' : 'For You Feed'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -138,14 +167,16 @@ const Index = () => {
       <main className="max-w-5xl mx-auto px-6 py-8">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-white">Discover Stories</h2>
+            <h2 className="text-xl font-semibold text-white">
+              {user?.preferences?.length ? 'Stories Curated For You' : 'Discover Stories'}
+            </h2>
             <div className="flex items-center gap-4">
               <StoriesPerPageSelector 
                 value={storiesPerPage} 
                 onChange={handleStoriesPerPageChange} 
               />
               <div className="text-sm text-gray-400">
-                {isLoading ? 'Loading...' : `Showing ${displayedStories.length} of ${sortedStories.length} stories`}
+                {isLoading ? 'Loading...' : `Showing ${displayedStories.length} of ${personalizedStories.length} stories`}
               </div>
             </div>
           </div>
@@ -157,7 +188,7 @@ const Index = () => {
         
         {isLoading ? (
           <div className="flex justify-center py-16">
-            <div className="text-gray-400 text-xl">Loading real Hacker News stories...</div>
+            <div className="text-gray-400 text-xl">Loading personalized stories...</div>
           </div>
         ) : (
           <>
@@ -173,8 +204,8 @@ const Index = () => {
 
             {displayedStories.length === 0 && !isLoading && (
               <div className="text-center py-16">
-                <div className="text-gray-400 text-xl mb-3">No stories found</div>
-                <div className="text-gray-500">Try selecting a different filter</div>
+                <div className="text-gray-400 text-xl mb-3">No matching stories found</div>
+                <div className="text-gray-500">Try selecting a different filter or adjusting your preferences</div>
               </div>
             )}
 
