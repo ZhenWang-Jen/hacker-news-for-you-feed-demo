@@ -40,7 +40,7 @@ Before you begin, ensure you have the following installed:
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/YOUR-USERNAME/hacker-news-for-you-feed-demo
 cd hacker-news-for-you-feed-demo
 
 # Verify you're in the correct directory
@@ -157,7 +157,7 @@ The personalized "For You" feed requires Shaped API integration. Follow these st
 
 ### Detailed Setup Guide
 
-For complete setup instructions, see [SHAPED_SETUP.md](./SHAPED_SETUP.md).
+For complete setup instructions, see [Shaped Quickstart](https://docs.shaped.ai/docs/overview/quickstart).
 
 **Note**: Without Shaped API setup, the application will fall back to basic sorting and show a warning message.
 
