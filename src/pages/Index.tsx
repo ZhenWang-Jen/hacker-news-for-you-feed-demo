@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { LogOut } from 'lucide-react';
+import { LogOut, RefreshCw, TrendingUp, User } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { FeedItem, Story } from '@/components/FeedItem';
 import { FilterBar, FilterType } from '@/components/FilterBar';
@@ -9,18 +9,30 @@ import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { LoginModal } from '@/components/LoginModal';
 import { SignUpModal } from '@/components/SignUpModal';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchTopStories, fetchStories, transformHNStory } from '@/services/hackerNewsApi';
+import { getPersonalizedFeed, checkServerHealth } from '@/services/engagementService';
 import { matchStoryToPreferences, getRelevanceScore } from '@/utils/storyMatcher';
 
+type FeedType = 'standard' | 'personalized';
+
 const Index = () => {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, isLoading: authLoading } = useAuth();
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [storiesPerPage, setStoriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
   const [allStories, setAllStories] = useState<Story[]>([]);
+  const [personalizedStories, setPersonalizedStories] = useState<Story[]>([]);
+  const [activeFeed, setActiveFeed] = useState<FeedType>('personalized');
+  const [isServerHealthy, setIsServerHealthy] = useState(true);
+
+  // Check server health on mount
+  useEffect(() => {
+    checkServerHealth().then(setIsServerHealthy);
+  }, []);
 
   // Fetch story IDs
   const { data: storyIds = [], isLoading: isLoadingIds } = useQuery({
@@ -45,14 +57,26 @@ const Index = () => {
     }
   }, [hnStories]);
 
+  // Get personalized feed when user is authenticated
+  useEffect(() => {
+    if (user && allStories.length > 0) {
+      getPersonalizedFeed({
+        userId: user.id,
+        stories: allStories
+      }).then(setPersonalizedStories);
+    }
+  }, [user, allStories]);
+
   const handleVote = (id: number, direction: 'up' | 'down') => {
-    setAllStories(prevStories => 
-      prevStories.map(story => 
+    const updateStories = (stories: Story[]) =>
+      stories.map(story => 
         story.id === id 
           ? { ...story, points: story.points + (direction === 'up' ? 1 : -1) }
           : story
-      )
-    );
+      );
+
+    setAllStories(updateStories);
+    setPersonalizedStories(updateStories);
   };
 
   // Filter stories based on category
@@ -60,20 +84,20 @@ const Index = () => {
     activeFilter === 'all' || story.category === activeFilter
   );
 
-  // Filter stories based on user preferences and sort by relevance
-  const personalizedStories = user?.preferences?.length 
-    ? categoryFilteredStories
-        .filter(story => matchStoryToPreferences(story.title, user.preferences))
-        .sort((a, b) => {
-          const scoreA = getRelevanceScore(a.title, user.preferences);
-          const scoreB = getRelevanceScore(b.title, user.preferences);
-          if (scoreA !== scoreB) return scoreB - scoreA; // Higher relevance first
-          return b.points - a.points; // Then by points
-        })
-    : categoryFilteredStories.sort((a, b) => b.points - a.points);
+  // Get stories for current feed
+  const getCurrentStories = () => {
+    if (activeFeed === 'personalized' && user) {
+      return personalizedStories.filter(story => 
+        activeFilter === 'all' || story.category === activeFilter
+      );
+    } else {
+      return categoryFilteredStories.sort((a, b) => b.points - a.points);
+    }
+  };
 
-  const displayedStories = personalizedStories.slice(0, currentPage * storiesPerPage);
-  const hasMoreStories = displayedStories.length < personalizedStories.length;
+  const currentStories = getCurrentStories();
+  const displayedStories = currentStories.slice(0, currentPage * storiesPerPage);
+  const hasMoreStories = displayedStories.length < currentStories.length;
 
   const handleLoadMore = () => {
     setCurrentPage(prev => prev + 1);
@@ -89,7 +113,24 @@ const Index = () => {
     setCurrentPage(1);
   };
 
-  const isLoading = isLoadingIds || isLoadingStories;
+  const handleFeedChange = (feed: FeedType) => {
+    setActiveFeed(feed);
+    setCurrentPage(1);
+  };
+
+  const isLoading = isLoadingIds || isLoadingStories || authLoading;
+
+  // Show loading state while auth is loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Show login/signup options if not authenticated
   if (!isAuthenticated) {
@@ -144,7 +185,7 @@ const Index = () => {
               <div>
                 <h1 className="text-3xl font-bold text-white">Hacker News</h1>
                 <p className="text-gray-400 text-sm mt-1">
-                  {user?.preferences?.length ? 'Personalized For You Feed' : 'For You Feed'}
+                  {activeFeed === 'personalized' ? 'Personalized For You Feed' : 'Standard Feed'}
                 </p>
               </div>
             </div>
@@ -165,30 +206,78 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-6 py-8">
+        {/* Feed Tabs */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-white">
-              {user?.preferences?.length ? 'Stories Curated For You' : 'Discover Stories'}
-            </h2>
-            <div className="flex items-center gap-4">
-              <StoriesPerPageSelector 
-                value={storiesPerPage} 
-                onChange={handleStoriesPerPageChange} 
-              />
-              <div className="text-sm text-gray-400">
-                {isLoading ? 'Loading...' : `Showing ${displayedStories.length} of ${personalizedStories.length} stories`}
+          <Tabs value={activeFeed} onValueChange={(value) => handleFeedChange(value as FeedType)}>
+            <TabsList className="grid w-full grid-cols-2 bg-gray-800">
+              <TabsTrigger value="personalized" className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                For You
+              </TabsTrigger>
+              <TabsTrigger value="standard" className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Standard
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="personalized" className="mt-6">
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-white">
+                    Stories Curated For You
+                  </h2>
+                  <div className="flex items-center gap-4">
+                    <StoriesPerPageSelector 
+                      value={storiesPerPage} 
+                      onChange={handleStoriesPerPageChange} 
+                    />
+                    <div className="text-sm text-gray-400">
+                      {isLoading ? 'Loading...' : `Showing ${displayedStories.length} of ${currentStories.length} stories`}
+                    </div>
+                  </div>
+                </div>
+                <FilterBar 
+                  activeFilter={activeFilter} 
+                  onFilterChange={handleFilterChange} 
+                />
+                {!isServerHealthy && (
+                  <div className="mt-4 p-3 bg-yellow-600/20 border border-yellow-500/30 rounded-lg">
+                    <p className="text-yellow-300 text-sm">
+                      ⚠️ Personalization server is offline. Showing standard feed.
+                    </p>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
-          <FilterBar 
-            activeFilter={activeFilter} 
-            onFilterChange={handleFilterChange} 
-          />
+            </TabsContent>
+            
+            <TabsContent value="standard" className="mt-6">
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-white">
+                    Top Stories
+                  </h2>
+                  <div className="flex items-center gap-4">
+                    <StoriesPerPageSelector 
+                      value={storiesPerPage} 
+                      onChange={handleStoriesPerPageChange} 
+                    />
+                    <div className="text-sm text-gray-400">
+                      {isLoading ? 'Loading...' : `Showing ${displayedStories.length} of ${currentStories.length} stories`}
+                    </div>
+                  </div>
+                </div>
+                <FilterBar 
+                  activeFilter={activeFilter} 
+                  onFilterChange={handleFilterChange} 
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
         
         {isLoading ? (
           <div className="flex justify-center py-16">
-            <div className="text-gray-400 text-xl">Loading personalized stories...</div>
+            <div className="text-gray-400 text-xl">Loading stories...</div>
           </div>
         ) : (
           <>
@@ -201,29 +290,15 @@ const Index = () => {
                 />
               ))}
             </div>
-
-            {displayedStories.length === 0 && !isLoading && (
-              <div className="text-center py-16">
-                <div className="text-gray-400 text-xl mb-3">No matching stories found</div>
-                <div className="text-gray-500">Try selecting a different filter or adjusting your preferences</div>
+            
+            {hasMoreStories && (
+              <div className="mt-8 flex justify-center">
+                <LoadMoreButton onLoadMore={handleLoadMore} />
               </div>
             )}
-
-            <LoadMoreButton 
-              onLoadMore={handleLoadMore}
-              isLoading={false}
-              hasMore={hasMoreStories}
-            />
           </>
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="bg-gray-800 border-t border-gray-700 mt-16">
-        <div className="max-w-5xl mx-auto px-6 py-8 text-center text-gray-400 text-sm">
-          <p>Real Hacker News Stories • Built with React & Tailwind CSS • Powered by Shaped AI</p>
-        </div>
-      </footer>
     </div>
   );
 };

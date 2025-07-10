@@ -1,0 +1,19 @@
+model:
+    name: hn_personalization
+connectors:
+    - type: Dataset
+      id: hn_engagement_events
+      name: hn_engagement_events
+fetch:
+    events: |
+        SELECT 
+            user_id, 
+            item_id, 
+            timestamp AS created_at, 
+            CASE 
+                WHEN event_type = 'click' THEN 1
+                WHEN event_type = 'upvote' AND metadata->>'direction' = 'up' THEN 1
+                WHEN event_type = 'comment' THEN 1
+                ELSE 0 
+            END AS label
+        FROM hn_engagement_events 
