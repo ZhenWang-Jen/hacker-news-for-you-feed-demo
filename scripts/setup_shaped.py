@@ -27,7 +27,7 @@ def run_command(command, description):
 def check_shaped_installed():
     """Check if Shaped CLI is installed"""
     try:
-        result = subprocess.run(['shaped', '--version'], capture_output=True, text=True)
+        result = subprocess.run(['shaped', '--help'], capture_output=True, text=True)
         return result.returncode == 0
     except FileNotFoundError:
         return False
