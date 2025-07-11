@@ -1,0 +1,6 @@
+{
+  "id": "1",
+  "email": "demo@example.com",
+  "name": "Demo User",
+  "preferences": ["technology", "startups", "web"]
+} 

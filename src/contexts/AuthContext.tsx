@@ -61,28 +61,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setUser(data.user);
-        saveUserToStorage(data.user);
+    if (email === 'demo@example.com' && password === 'password') {
+      try {
+        const response = await fetch('/demo-user.json');
+        if (!response.ok) throw new Error('Demo user not found');
+        const user = await response.json();
+        setUser(user);
+        saveUserToStorage(user);
         return true;
-      } else {
+      } catch (error) {
+        console.error('Failed to load demo user:', error);
         return false;
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      return false;
     }
+    // All other credentials fail in demo mode
+    return false;
   };
 
   const signup = async (name: string, email: string, password: string, preferences: string[]): Promise<boolean> => {
